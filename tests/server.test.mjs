@@ -1,12 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
-import { createApp } from '../server.js';
+import defaultApp, { createApp } from '../server.js';
 
-function startTestServer() {
-  const app = createApp();
+function startTestServer(appInstance = createApp()) {
   return new Promise((resolve, reject) => {
-    const server = http.createServer(app);
+    const server = http.createServer(appInstance);
     server.listen(0, '127.0.0.1', () => {
       const address = server.address();
       if (!address || typeof address === 'string') {
@@ -19,6 +18,19 @@ function startTestServer() {
   });
 }
 
+test('server.js exports a valid default Express app function for Vercel serverless runtime', async () => {
+  assert.equal(typeof defaultApp, 'function');
+  const { server, baseUrl } = await startTestServer(defaultApp);
+  try {
+    const healthRes = await fetch(`${baseUrl}/api/health`);
+    assert.equal(healthRes.status, 200);
+    const healthBody = await healthRes.json();
+    assert.equal(healthBody.status, 'ok');
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
 test('GET / serves SK Barangay Pugaan DMS index.html with 200 OK', async () => {
   const { server, baseUrl } = await startTestServer();
   try {
@@ -27,8 +39,9 @@ test('GET / serves SK Barangay Pugaan DMS index.html with 200 OK', async () => {
     const contentType = res.headers.get('content-type') || '';
     assert.match(contentType, /text\/html/);
     const html = await res.text();
-    assert.match(html, /SK Barangay Pugaan - Document Management & Tracking System/);
-    assert.match(html, /INITIAL_SAMPLE_DOCUMENTS/);
+    assert.match(html, /SK Barangay Pugaan — Document Management, Requirements & Tracking System/);
+    assert.match(html, /STORAGE_KEY_RELATIONAL_DB/);
+    assert.match(html, /createSeedDatabase/);
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }
@@ -57,3 +70,4 @@ test('POST unknown path returns 404 JSON error', async () => {
     await new Promise((resolve) => server.close(resolve));
   }
 });
+
